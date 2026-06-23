@@ -50,8 +50,7 @@ VLOGAN  = vlogan -q -full64 \
 VCS_ELAB = vcs -sysc=deltasync -lca \
         -full64 -sysc -cpp g++ -cc gcc \
         -timescale=1ns/1ps \
-        -P ${VERDI_HOME}/share/PLI/VCS/LINUX64/novas.tab \
-        ${VERDI_HOME}/share/PLI/VCS/LINUX64/pli.a \
+        -debug_access+all \
         -CFLAGS -DVCS ${UVM_HOME}/src/dpi/uvm_dpi.cc \
         -e VcsMain sv_main ${VCS_HOME}/linux64/lib/vcs_tls.o -slave
 

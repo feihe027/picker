@@ -37,10 +37,16 @@ if(SIMULATOR STREQUAL "vcs")
 		message(STATUS "VCS CFLAGS: ${CFLAGS}")
 	endif()
 	
-	# if vpi is enabled, add SIMULATOR_FLAGS '+vpi' and '-debug_access+all'
-	if(${VPI} STREQUAL "ON")
-		set(SIMULATOR_FLAGS "${SIMULATOR_FLAGS};+vpi;-debug_access+all")
-	endif()
+		# Modern VCS/Verdi FSDB flow uses -debug_access instead of deprecated
+		# novas.tab/pli.a integration. Keep +vpi explicit for compatibility with
+		# the internal-signal access path, and enable debug_access whenever VPI or
+		# FSDB dumping is requested.
+		if(${VPI} STREQUAL "ON")
+			set(SIMULATOR_FLAGS "${SIMULATOR_FLAGS};+vpi")
+		endif()
+		if(${TRACE} STREQUAL "fsdb" OR ${VPI} STREQUAL "ON")
+			list(APPEND SIMULATOR_FLAGS -debug_access+all)
+		endif()
 
 	# Using Compiled vcs dynamic library
 	if(NOT "${VCS_DYN}" STREQUAL "")
@@ -57,14 +63,11 @@ if(SIMULATOR STREQUAL "vcs")
 			COMMAND
 				vcs -e VcsMain -slave ${VCS_TRACE} -sverilog -lca -l compile.log
 				-top ${ModuleName}_top -full64 -timescale=1ns/1ps 
-				${ModuleName}_top.sv ${ModuleName}.v -f filelist.f 
-				-o libDPI${ModuleName}.so +modelsave -LDFLAGS "-shared"
-				${SIMULATOR_FLAGS} 
-				${SIMULATOR_CFLAGS}
-				-P ${VERDI_HOME}/share/PLI/VCS/LINUX64/novas.tab
-				-P pli.tab
-				${VERDI_HOME}/share/PLI/VCS/LINUX64/pli.a)
-	endif()
+					${ModuleName}_top.sv ${ModuleName}.v -f filelist.f 
+					-o libDPI${ModuleName}.so +modelsave -LDFLAGS "-shared"
+					${SIMULATOR_FLAGS} 
+					${SIMULATOR_CFLAGS})
+		endif()
 
 	# Add VCS dependency library
 	add_library(vcs_tls OBJECT IMPORTED)

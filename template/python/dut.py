@@ -1,20 +1,106 @@
 #coding=utf8
 
+import os
+import sys
+from importlib import import_module
+
 try:
     from . import xspcomm as xsp
-except Exception as e:
+except ImportError:
     import xspcomm as xsp
 
-if __package__ or "." in __name__:
-    from .libUT_{{__TOP_MODULE_NAME__}} import *
-else:
-    from libUT_{{__TOP_MODULE_NAME__}} import *
+_HANDLED_ENV = "_PICKER_LD_PRELOAD_HANDLED"
+_BINDINGS_MODULE = None
+
+
+def _requires_preload():
+    {% if __SIMULATOR__ == "vcs" or __SIMULATOR__ == "uvs" %}
+    return True
+    {% else %}
+    return False
+    {% endif %}
+
+
+def _preload_library_path():
+    if not _requires_preload():
+        return None
+
+    dut_dir = os.path.dirname(os.path.abspath(__file__))
+    for preload_path in (
+        os.path.join(dut_dir, "libUT{{__TOP_MODULE_NAME__}}.so"),
+        os.path.join(dut_dir, "UT_{{__TOP_MODULE_NAME__}}", "libUT{{__TOP_MODULE_NAME__}}.so"),
+        os.path.join(dut_dir, "{{__TOP_MODULE_NAME__}}", "libUT{{__TOP_MODULE_NAME__}}.so"),
+        os.path.join(dut_dir, "{{__TOP_MODULE_NAME__}}", "UT_{{__TOP_MODULE_NAME__}}", "libUT{{__TOP_MODULE_NAME__}}.so"),
+    ):
+        if os.path.exists(preload_path):
+            return preload_path
+    return None
+
+
+def restart_with_preload():
+    """Re-exec the current Python process with the simulator wrapper preloaded.
+
+    Call this at the start of a script before creating the DUT when running with
+    VCS/UVS. The current process image is replaced exactly once.
+    """
+    if not _requires_preload() or _HANDLED_ENV in os.environ:
+        return False
+
+    preload_path = _preload_library_path()
+    if preload_path is None:
+        raise RuntimeError("Failed to locate libUT{{__TOP_MODULE_NAME__}}.so for simulator preload")
+
+    env = os.environ.copy()
+    current_preload = env.get("LD_PRELOAD")
+    env["LD_PRELOAD"] = preload_path if not current_preload else f"{preload_path}:{current_preload}"
+    env[_HANDLED_ENV] = "1"
+    os.execve(sys.executable, [sys.executable] + sys.argv, env)
+
+
+def _load_dut_bindings():
+    global _BINDINGS_MODULE
+    if _BINDINGS_MODULE is not None:
+        return _BINDINGS_MODULE
+
+    try:
+        if __package__ or "." in __name__:
+            module = import_module(".libUT_{{__TOP_MODULE_NAME__}}", __package__)
+        else:
+            module = import_module("libUT_{{__TOP_MODULE_NAME__}}")
+    except ImportError as exc:
+        {% if __SIMULATOR__ == "vcs" or __SIMULATOR__ == "uvs" %}
+        if "static TLS block" not in str(exc):
+            raise
+
+        preload_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libUT{{__TOP_MODULE_NAME__}}.so")
+        raise ImportError(
+            "Failed to load the {{__SIMULATOR__}} Python wrapper because the simulator library "
+            f"was not preloaded. Start Python with LD_PRELOAD={preload_path}, or call "
+            "restart_with_preload() from this module at the start of your script before "
+            "creating the DUT."
+        ) from exc
+        {% else %}
+        raise
+        {% endif %}
+
+    globals().update({name: value for name, value in vars(module).items() if not name.startswith("_")})
+    _BINDINGS_MODULE = module
+    return module
+
+
+def __getattr__(name):
+    module = _load_dut_bindings()
+    try:
+        return getattr(module, name)
+    except AttributeError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
 
 
 class DUT{{__TOP_MODULE_NAME__}}(object):
 
     # initialize
     def __init__(self, *args, **kwargs):
+        _load_dut_bindings()
         self.dut = DutUnifiedBase(*args)
         self.xclock = xsp.XClock(self.dut.pxcStep, self.dut.pSelf)
         self.xport  = xsp.XPort()
