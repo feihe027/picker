@@ -51,17 +51,18 @@ make init
 ### Build and Install
 
 ```bash
+git clone https://192.168.2.185/asic_ai/picker.git
+git checkout picker-vcs
 cd picker
-make
+make -j$(nproc)
 # You can enable support for other languages by
 #   using `make BUILD_XSPCOMM_SWIG=python,java,scala,golang,lua`.
 # Each language requires its own development environment,
 #   which needs to be configured separately, such as `javac` for Java.
-# Install to the default prefix (/usr/local)
-sudo -E make install
 
-# Or install to a custom prefix, for example:
-# make install ARGS="-DCMAKE_INSTALL_PREFIX=$HOME/picker"
+# Install to a custom prefix, for example:
+make install ARGS="-DCMAKE_INSTALL_PREFIX=$HOME/picker"
+sudo ln -s $HOME/picker/bin/picker /usr/local/bin/picker-vcs
 ```
 
 #### Install Prefix
