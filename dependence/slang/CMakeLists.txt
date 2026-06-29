@@ -24,9 +24,19 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
 endif()
 
 # Determine our patch version by looking at git tags.
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-include(gitversion)
-get_git_version(SLANG_VERSION_PATCH SLANG_VERSION_HASH)
+#
+# When slang is vendored into another repo for offline builds, its own `.git`
+# directory is intentionally absent. In that case, don't walk up to the parent
+# project's git metadata because `git describe` there is unrelated to slang and
+# can produce a non-numeric patch component that breaks `project(VERSION ...)`.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+  set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+  include(gitversion)
+  get_git_version(SLANG_VERSION_PATCH SLANG_VERSION_HASH)
+else()
+  set(SLANG_VERSION_PATCH 0)
+  set(SLANG_VERSION_HASH vendored)
+endif()
 
 set(SLANG_VERSION_MAJOR 10)
 set(SLANG_VERSION_MINOR 0)
