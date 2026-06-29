@@ -15,7 +15,9 @@ XCOMM_DIR="${XCOMM_DIR:-${ROOT_DIR}/dependence/xcomm}"
 XCOMM_REPO="${XCOMM_REPO:-https://github.com/XS-MLVP/xcomm.git}"
 XCOMM_REPO_FALLBACK="${XCOMM_REPO_FALLBACK:-https://gitlink.org.cn/XS-MLVP/xcomm.git}"
 
-if [[ ! -d "${FMT_DIR}/.git" ]]; then
+if [[ -f "${FMT_DIR}/CMakeLists.txt" && ! -e "${FMT_DIR}/.git" ]]; then
+  echo "[fmt] Using vendored source at ${FMT_DIR}"
+elif [[ ! -e "${FMT_DIR}/.git" ]]; then
   mkdir -p "${FMT_DIR}"
   git -C "${FMT_DIR}" init -q
   git -C "${FMT_DIR}" remote add origin "${FMT_REPO}"
@@ -33,7 +35,9 @@ else
   git -c advice.detachedHead=false -C "${FMT_DIR}" checkout --detach "${FMT_TAG}"
 fi
 
-if [[ ! -d "${SLANG_DIR}/.git" ]]; then
+if [[ -f "${SLANG_DIR}/CMakeLists.txt" && ! -e "${SLANG_DIR}/.git" ]]; then
+  echo "[slang] Using vendored source at ${SLANG_DIR}"
+elif [[ ! -e "${SLANG_DIR}/.git" ]]; then
   mkdir -p "${SLANG_DIR}"
   git -C "${SLANG_DIR}" init -q
   git -C "${SLANG_DIR}" remote add origin "${SLANG_REPO}"
@@ -51,7 +55,9 @@ else
   git -c advice.detachedHead=false -C "${SLANG_DIR}" checkout --detach "${SLANG_TAG}"
 fi
 
-if [[ ! -d "${XCOMM_DIR}/.git" ]]; then
+if [[ -f "${XCOMM_DIR}/CMakeLists.txt" && ! -e "${XCOMM_DIR}/.git" ]]; then
+  echo "[xcomm] Using vendored source at ${XCOMM_DIR}"
+elif [[ ! -e "${XCOMM_DIR}/.git" ]]; then
   mkdir -p "$(dirname "${XCOMM_DIR}")"
   if git clone --depth=1 "${XCOMM_REPO}" "${XCOMM_DIR}"; then
     echo "[xcomm] cloned from github"
