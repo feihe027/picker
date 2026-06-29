@@ -22,6 +22,11 @@ rm -rf "${ROOT_DIR}/picker_out_adder"
 
 cp "${ROOT_DIR}/example/Adder/example.py" "${ROOT_DIR}/picker_out_adder/Adder/python/"
 
+blue "[export-python] Verifying generated wrapper contains shared-runtime guards"
+grep -q "def _should_share_runtime" "${ROOT_DIR}/picker_out_adder/Adder/python/dut.py"
+grep -q "def _shutdown_shared_runtime" "${ROOT_DIR}/picker_out_adder/Adder/python/dut.py"
+grep -q "def Shutdown" "${ROOT_DIR}/picker_out_adder/Adder/python/dut.py"
+
 blue "[export-python] Building generated project"
 make -C "${ROOT_DIR}/picker_out_adder/Adder" EXAMPLE=ON -j"$(nproc)"
 

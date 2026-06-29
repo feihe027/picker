@@ -1,5 +1,15 @@
 CURRENT_DIR := $(shell pwd)
 NPROC := $(shell (nproc 2>/dev/null || sysctl -n hw.ncpu) 2>/dev/null)
+JAVAC := $(shell command -v javac 2>/dev/null)
+JAVA_BIN_DIR := $(if $(JAVAC),$(shell dirname "$(shell readlink -f $(JAVAC))"),)
+JAVA_HOME ?= $(if $(JAVA_BIN_DIR),$(shell dirname "$(JAVA_BIN_DIR)"),)
+SCALA := $(shell command -v scala 2>/dev/null)
+
+ifneq ($(JAVA_BIN_DIR),)
+export JAVA_HOME
+export PATH := $(JAVA_BIN_DIR):$(PATH)
+endif
+
 .PHONY: all test compile clean purge copy_xspcomm
 
 all: test clean
@@ -8,7 +18,7 @@ all: test clean
 
 test: compile
 	@echo "--------------Compile Success Test Step DUT--------------------"
-	@scala -cp {{__XSPCOMM_JAR__}}:${TARGET}-scala.jar com.ut.example
+	@$(SCALA) -cp {{__XSPCOMM_JAR__}}:${TARGET}-scala.jar com.ut.example
 	@echo "--------------------------------------------------------------"
 
 # copy xspcomm lib

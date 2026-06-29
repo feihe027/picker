@@ -71,6 +71,50 @@ include(${SWIG_USE_FILE})
 include_directories(./)
 set(SWIG_OUTFILE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_javaswig)
 
+function(picker_prepare_java_toolchain)
+find_program(PICKER_JAVAC_EXECUTABLE javac)
+if(NOT PICKER_JAVAC_EXECUTABLE)
+    message(FATAL_ERROR "javac not found. Please install a JDK.")
+endif()
+
+get_filename_component(PICKER_JAVAC_REAL "${PICKER_JAVAC_EXECUTABLE}" REALPATH)
+get_filename_component(PICKER_JAVA_BIN_DIR "${PICKER_JAVAC_REAL}" DIRECTORY)
+get_filename_component(PICKER_JAVA_HOME "${PICKER_JAVA_BIN_DIR}" DIRECTORY)
+
+set(ENV{JAVA_HOME} "${PICKER_JAVA_HOME}")
+set(PICKER_JAVA_TOOL_DIR "${CMAKE_CURRENT_BINARY_DIR}/picker_java_tools")
+file(MAKE_DIRECTORY "${PICKER_JAVA_TOOL_DIR}")
+
+find_program(PICKER_JAVAH_EXECUTABLE javah HINTS "${PICKER_JAVA_BIN_DIR}" NO_DEFAULT_PATH)
+if(NOT PICKER_JAVAH_EXECUTABLE)
+    if(WIN32)
+        set(PICKER_JAVAH_EXECUTABLE "${PICKER_JAVA_TOOL_DIR}/javah.bat")
+        file(WRITE "${PICKER_JAVAH_EXECUTABLE}" "@echo off\r\n\"${PICKER_JAVAC_REAL}\" %*\r\n")
+    else()
+        set(PICKER_JAVAH_EXECUTABLE "${PICKER_JAVA_TOOL_DIR}/javah")
+        file(WRITE "${PICKER_JAVAH_EXECUTABLE}" "#!/bin/sh\nexec \"${PICKER_JAVAC_REAL}\" \"$@\"\n")
+        execute_process(COMMAND chmod +x "${PICKER_JAVAH_EXECUTABLE}")
+    endif()
+endif()
+
+if(WIN32)
+    set(PICKER_JAVA_PATH_SEP ";")
+else()
+    set(PICKER_JAVA_PATH_SEP ":")
+endif()
+
+if(DEFINED ENV{PATH} AND NOT "$ENV{PATH}" STREQUAL "")
+    set(ENV{PATH} "${PICKER_JAVA_TOOL_DIR}${PICKER_JAVA_PATH_SEP}${PICKER_JAVA_BIN_DIR}${PICKER_JAVA_PATH_SEP}$ENV{PATH}")
+else()
+    set(ENV{PATH} "${PICKER_JAVA_TOOL_DIR}${PICKER_JAVA_PATH_SEP}${PICKER_JAVA_BIN_DIR}")
+endif()
+
+set(Java_JAVAH_EXECUTABLE "${PICKER_JAVAH_EXECUTABLE}" CACHE FILEPATH "Compatibility javah executable" FORCE)
+message(STATUS "Using JAVA_HOME=${PICKER_JAVA_HOME}")
+endfunction()
+
+picker_prepare_java_toolchain()
+
 # Include jni
 find_package(JNI REQUIRED)
 find_package(Java REQUIRED)

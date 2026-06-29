@@ -11,5 +11,5 @@ fi
 
 
 # run cache codegen
-rm -rf temp 
+rm -rf temp ./picker_out/temp
 ./build/bin/picker export example/XDummyCache/Cache.sv --autobuild true --sdir ./template --tdir ./picker_out/temp  --sname XDumyCache --tname Cache -w Cache.fst --sim verilator $@

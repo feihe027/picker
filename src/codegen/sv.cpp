@@ -29,7 +29,7 @@ namespace picker { namespace codegen {
         static const std::string dpi_finish_sv_template =
             "  export \"DPI-C\" function finish_{{__LIB_DPI_FUNC_NAME_HASH__}};\n"
             "  function void finish_{{__LIB_DPI_FUNC_NAME_HASH__}};\n"
-            "    $finish;\n"
+            "{{__FINISH_BODY__}}"
             "  endfunction\n";
 
         /// @brief Export external pin for verilog render, contains pin connect,
@@ -321,12 +321,35 @@ namespace picker { namespace codegen {
             delete_trie(root);
         }
 
-        void render_extend_sv(nlohmann::json &global_data, std::string &extend_sv)
+        void render_extend_sv(const std::string &simulator, const std::string &wave_file_name,
+                              nlohmann::json &global_data, std::string &extend_sv)
         {
             inja::Environment env;
             nlohmann::json data;
             data["__LIB_DPI_FUNC_NAME_HASH__"] = std::string(lib_random_hash);
-            extend_sv                          = env.render(dpi_finish_sv_template, data);
+
+            // Body of the exported finish_<hash> function.
+            //
+            // VCS/UVS run the simulator in-process (loaded as a shared library),
+            // so $finish would terminate the whole host process -- e.g. the
+            // python/pytest interpreter -- making it impossible to run several
+            // test cases or to dump a valid waveform from a fixture teardown.
+            // Instead, just finalize the waveform dump (when one is configured)
+            // so the trace file is closed cleanly while the process keeps
+            // running; the C++ Finish() handles the rest of the teardown.
+            //
+            // verilator/gsim never call this DPI function (their Finish() does
+            // the cleanup in C++), so keep the historical $finish for them.
+            std::string finish_body;
+            if (simulator == "vcs") {
+                if (!wave_file_name.empty()) finish_body = "    $fsdbDumpFinish;\n";
+            } else if (simulator == "uvs") {
+                if (!wave_file_name.empty()) finish_body = "    $usdbDumpFinish;\n";
+            } else {
+                finish_body = "    $finish;\n";
+            }
+            data["__FINISH_BODY__"] = finish_body;
+            extend_sv               = env.render(dpi_finish_sv_template, data);
         }
 
     } // namespace sv
@@ -348,7 +371,7 @@ namespace picker { namespace codegen {
         sv::render_internal_signal(internal_signal, dpi_export, dpi_impl);
         sv::render_sv_waveform(simulator, wave_file_name, global_render_data);
         sv::render_signal_tree(external_pin, internal_signal, signal_tree, signal_tree_json);
-        sv::render_extend_sv(global_render_data, extend_sv);
+        sv::render_extend_sv(simulator, wave_file_name, global_render_data, extend_sv);
 
         switch (rw_type)
         {

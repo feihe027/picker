@@ -1,0 +1,41 @@
+# Prerequisites
+*.d
+build/
+.vscode/
+dist/
+*.pyc
+.pyodide-xbuildenv/
+node_modules/
+.bsp/
+.scala-build/
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+.metals
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+!swig/golang/go.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app

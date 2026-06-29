@@ -1,0 +1,3 @@
+
+add_executable(test_codegen_sv_finish test_codegen_sv_finish.cpp)
+target_link_libraries(test_codegen_sv_finish codegen_)

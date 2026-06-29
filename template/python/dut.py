@@ -1,5 +1,6 @@
 #coding=utf8
 
+import atexit
 import os
 import sys
 from importlib import import_module
@@ -35,6 +36,30 @@ def _preload_library_path():
         if os.path.exists(preload_path):
             return preload_path
     return None
+
+
+def _env_flag(name):
+    value = os.environ.get(name, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _running_under_pytest():
+    return "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ
+
+
+def _should_share_runtime():
+    # VCS/UVS load the simulator into the host Python process and cannot be
+    # safely re-initialized per test case. Under pytest, default to a
+    # process-wide shared runtime so repeated DUT() / Finish() cycles do not
+    # crash the session. Scripts keep the historical per-instance behavior
+    # unless the user opts in via PICKER_SHARE_RUNTIME=1.
+    if not _requires_preload():
+        return False
+    if _env_flag("PICKER_DISABLE_SHARED_RUNTIME"):
+        return False
+    if _env_flag("PICKER_SHARE_RUNTIME"):
+        return True
+    return _running_under_pytest()
 
 
 def restart_with_preload():
@@ -98,8 +123,41 @@ def __getattr__(name):
 
 class DUT{{__TOP_MODULE_NAME__}}(object):
 
+    _shared_instance = None
+    _shared_cleanup_registered = False
+
+    def __new__(cls, *args, **kwargs):
+        if _should_share_runtime():
+            if cls._shared_instance is None:
+                instance = super().__new__(cls)
+                instance._picker_initialized = False
+                instance._picker_runtime_closed = False
+                instance._picker_shared_runtime = True
+                cls._shared_instance = instance
+                if not cls._shared_cleanup_registered:
+                    atexit.register(cls._shutdown_shared_runtime)
+                    cls._shared_cleanup_registered = True
+            return cls._shared_instance
+
+        instance = super().__new__(cls)
+        instance._picker_initialized = False
+        instance._picker_runtime_closed = False
+        instance._picker_shared_runtime = False
+        return instance
+
+    @classmethod
+    def _shutdown_shared_runtime(cls):
+        instance = cls._shared_instance
+        if instance is None:
+            return
+        instance._finish_runtime()
+        cls._shared_instance = None
+
     # initialize
     def __init__(self, *args, **kwargs):
+        if getattr(self, "_picker_initialized", False):
+            return
+
         _load_dut_bindings()
         self.dut = DutUnifiedBase(*args)
         self.xclock = xsp.XClock(self.dut.pxcStep, self.dut.pSelf)
@@ -131,7 +189,12 @@ class DUT{{__TOP_MODULE_NAME__}}(object):
         # Cascaded ports
 {{__XPORT_CASCADED__}}
 
+        self._picker_initialized = True
+        self._picker_runtime_closed = False
+
     def __del__(self):
+        if getattr(self, "_picker_shared_runtime", False):
+            return
         self.Finish()
 
     ################################
@@ -242,8 +305,24 @@ class DUT{{__TOP_MODULE_NAME__}}(object):
     def VPIInternalSignalList(self, prefix="", deep=99):
         return self.dut.VPIInternalSignalList(prefix, deep)
 
+    def _finish_runtime(self):
+        if getattr(self, "_picker_runtime_closed", False):
+            return 0
+        if hasattr(self, "dut"):
+            self.dut.Finish()
+        self._picker_runtime_closed = True
+        self._picker_initialized = False
+        if getattr(self, "_picker_shared_runtime", False) and type(self)._shared_instance is self:
+            type(self)._shared_instance = None
+        return 0
+
     def Finish(self):
-        self.dut.Finish()
+        if getattr(self, "_picker_shared_runtime", False):
+            return 0
+        return self._finish_runtime()
+
+    def Shutdown(self):
+        return self._finish_runtime()
 
     def RefreshComb(self):
         self.dut.RefreshComb()
