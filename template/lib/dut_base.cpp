@@ -82,8 +82,10 @@ int DutVcsBase::Step(uint64_t ncycle, bool dump)
 
 int DutVcsBase::Finish()
 {
-    // Finish VCS context
-    if ({{__COVERAGE_METRICS__}} != 0) { vpi_control(vpiCoverageSave); }
+    // Finish VCS context. Coverage is flushed by $finish in the SV finish
+    // hook (the only thing that actually commits the .vdb in VCS in-process
+    // mode); $cm_dump / vpi_control(vpiCoverageSave) do not, so they are not
+    // called here.
     finish_{{__LIB_DPI_FUNC_NAME_HASH__}}();
     return 0;
 };

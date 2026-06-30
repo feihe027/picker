@@ -338,12 +338,18 @@ namespace picker { namespace codegen {
             // so the trace file is closed cleanly while the process keeps
             // running; the C++ Finish() handles the rest of the teardown.
             //
+            // Exception: VCS only commits its coverage database (.vdb) at
+            // $finish -- $cm_dump / vpi_control(vpiCoverageSave) do NOT flush it
+            // in this in-process mode -- so when coverage is enabled we must
+            // still emit $finish. The python shared runtime defers Finish() to
+            // atexit, so this single terminating $finish fires only after the
+            // whole pytest session has run and reported.
+            //
             // verilator/gsim never call this DPI function (their Finish() does
             // the cleanup in C++), so keep the historical $finish for them.
             std::string finish_body;
             if (simulator == "vcs") {
                 const bool coverage_enabled = global_data.value("__COVERAGE__", std::string("OFF")) == "ON";
-                if (coverage_enabled) finish_body += "    $cm_dump;\n";
                 if (!wave_file_name.empty()) finish_body += "    $fsdbDumpFinish;\n";
                 if (coverage_enabled) finish_body += "    $finish;\n";
             } else if (simulator == "uvs") {

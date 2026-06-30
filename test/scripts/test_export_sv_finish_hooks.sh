@@ -73,7 +73,7 @@ assert_contains "${TMP_DIR}/vcs_coverage/Makefile" 'urg -dir'
 assert_contains "${TMP_DIR}/vcs_coverage/Makefile" '-report coverage'
 assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'append_vcs_arg("line+cond+fsm+tgl+branch+assert")'
 assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'vcs_coverage.vdb'
-assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$cm_dump;'
+assert_not_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$cm_dump;'
 assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$finish;'
 
 blue "[export-finish-hooks] Exporting VCS wrapper with custom coverage flags"
@@ -93,7 +93,7 @@ assert_contains "${TMP_DIR}/vcs_custom_coverage/Makefile" "export SIMULATOR_FLAG
 assert_not_contains "${TMP_DIR}/vcs_custom_coverage/Makefile" 'line+cond+fsm+tgl+branch+assert'
 assert_contains "${TMP_DIR}/vcs_custom_coverage/dut_base.cpp" 'append_vcs_arg("line")'
 assert_contains "${TMP_DIR}/vcs_custom_coverage/dut_base.cpp" "${CUSTOM_VDB}"
-assert_contains "${TMP_DIR}/vcs_custom_coverage/Adder_top.sv" '\$cm_dump;'
+assert_not_contains "${TMP_DIR}/vcs_custom_coverage/Adder_top.sv" '\$cm_dump;'
 assert_contains "${TMP_DIR}/vcs_custom_coverage/Adder_top.sv" '\$finish;'
 
 blue "[export-finish-hooks] Exporting UVS wrapper with waveform"

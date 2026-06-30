@@ -10,10 +10,6 @@
 #if defined(USE_VERILATOR) || defined(USE_VCS) || defined(USE_UVS)
 #include <svdpi.h>
 #endif
-#if defined(USE_VCS)
-#include <vpi_user.h>
-#include <sv_vpi_user.h>
-#endif
 
 #if defined(USE_GSIM)
 #include "{{__TOP_MODULE_NAME__}}.h"
