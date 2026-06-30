@@ -24,9 +24,11 @@ Two things are checked:
 """
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -55,6 +57,49 @@ def _preload_env():
         prev = env.get("LD_PRELOAD", "")
         env["LD_PRELOAD"] = lib if not prev else lib + ":" + prev
     return env
+
+
+def _parse_line_coverage(report_text):
+    """Pull the overall LINE coverage percentage out of a urg text report."""
+    lines = report_text.splitlines()
+    for i, ln in enumerate(lines):
+        cols = ln.split()
+        if "LINE" in cols and ("SCORE" in cols or "NAME" in cols):
+            idx = cols.index("LINE")
+            for nxt in lines[i + 1:]:
+                nums = nxt.split()
+                if len(nums) > idx:
+                    try:
+                        return float(nums[idx].rstrip("%"))
+                    except ValueError:
+                        continue
+    m = re.search(r"[Ll]ine(?:\s*[Cc]overage)?[:\s]+([0-9]+(?:\.[0-9]+)?)\s*%",
+                  report_text)
+    return float(m.group(1)) if m else None
+
+
+def _urg_line_coverage(vdb):
+    """Overall line coverage via urg, or None if urg is missing or fails (e.g.
+    no coverage license in this environment)."""
+    if shutil.which("urg") is None:
+        return None
+    out = tempfile.mkdtemp(prefix="urg_adder_")
+    try:
+        res = subprocess.run(
+            ["urg", "-full64", "-dir", vdb, "-report", out],
+            capture_output=True, text=True,
+        )
+        if res.returncode != 0:
+            return None
+        dash = os.path.join(out, "dashboard.txt")
+        if not os.path.exists(dash):
+            return None
+        with open(dash) as fh:
+            return _parse_line_coverage(fh.read())
+    except OSError:
+        return None
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
 
 
 @pytest.fixture(scope="module")
@@ -168,4 +213,37 @@ def test_coverage_has_all_metrics():
         )
         assert hits, "no committed coverage data for metric %r" % metric
         assert os.path.getsize(hits[0]) > 0, "empty coverage data for %r" % metric
+
+
+def test_line_coverage_meets_threshold():
+    """Gate on actual line coverage when urg is available. Skips where urg or a
+    coverage license is missing -- run ``make coverage`` in a licensed env to
+    get the report. Tune the floor with ADDER_MIN_LINE_COV (default 90%)."""
+    vdb = _find_coverage_vdb()
+    if vdb is None:
+        pytest.skip("no VCS coverage database; export with -c to enable coverage")
+
+    driver = (
+        "from Adder import DUTAdder\n"
+        "d = DUTAdder()\n"
+        "for i in range(128):\n"
+        "    d.a.value = (i * 0x9E3779B1) & ((1 << 128) - 1)\n"
+        "    d.b.value = (i * 0x1234567) & ((1 << 128) - 1)\n"
+        "    d.cin.value = i & 1\n"
+        "    d.Step(1)\n"
+        "d.Finish()\n"
+    )
+    subprocess.run(
+        [sys.executable, "-c", driver], cwd=HERE, env=_preload_env(), check=True
+    )
+    cov = _urg_line_coverage(vdb)
+    if cov is None:
+        pytest.skip("urg unavailable or no coverage license; run `make coverage`")
+
+    threshold = float(os.environ.get("ADDER_MIN_LINE_COV", "90"))
+    print("Adder line coverage: %.2f%% (threshold %.1f%%)" % (cov, threshold))
+    assert cov >= threshold, (
+        "line coverage %.2f%% below threshold %.1f%%" % (cov, threshold)
+    )
+
 
