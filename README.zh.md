@@ -171,7 +171,8 @@ Options:
   -F,--frequency TEXT [100MHz]
                               Set the frequency of the **only VCS** DUT, default is 100MHz, use Hz, KHz, MHz, GHz as unit
   -w,--wave_file_name TEXT    Wave file name, empty means don't dump wave
-  -c,--coverage               Enable coverage, default is not selected as OFF
+  -c,--coverage               Enable coverage, default is not selected as OFF.
+                              VCS 下默认添加 "-cm line+cond+fsm+tgl+branch+assert"，并把 vcs_coverage.vdb 写到生成目录
   --cp_lib,--copy_xspcomm_lib BOOLEAN [1]
                               Copy xspcomm lib to generated DUT dir, default is true
   -V,--vflag TEXT             User defined simulator compile args, passthrough.
@@ -220,7 +221,7 @@ Options:
 - `--internal TEXT`: 可选。导出的内部信号配置文件，默认为空，表示没有内部引脚
 - `-F,--frequency TEXT [100MHz]`: 可选。设置 **仅 VCS** DUT 的频率，默认是 100MHz，可以使用 Hz、KHz、MHz、GHz 作为单位
 - `-w,--wave_file_name TEXT`: 可选。波形文件名，空表示不导出波形
-- `-c,--coverage`: 可选。启用覆盖率，默认不选择为 OFF
+- `-c,--coverage`: 可选。启用覆盖率，默认不选择为 OFF。VCS 下默认添加 `-cm line+cond+fsm+tgl+branch+assert`，并把 `vcs_coverage.vdb` 写到生成目录；先运行生成的测试，再在生成目录执行 `make coverage`，会用 `urg` 在 `coverage/` 下生成报告。VCS 覆盖率模式会调用 `$finish` 以刷新覆盖率数据库，因此建议一个进程只跑一次覆盖率测试。
 - `--cp_lib,--copy_xspcomm_lib BOOLEAN [1]`: 可选。将 xspcomm 库复制到生成的 DUT 目录，默认是 true
 - `-V,--vflag TEXT`: 可选。用户定义的模拟器编译参数，透传。例如： 模拟器使用 vcs 时，导出行覆盖率: '-V '"-cm line -cm_dir /abs_path_to_store_coverage_data"''
 - `-C,--cflag TEXT`: 可选。用户定义的 gcc/clang 编译命令，透传。例如： -C '"-O3 -std=c++17 -I./include"'

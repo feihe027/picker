@@ -10,6 +10,7 @@ export TLANG := {{__TARGET_LANGUAGE__}}
 export SIMULATOR_FLAGS := {{__VFLAG__}}
 export CFLAGS := {{__CFLAG__}}
 export COVERAGE := {{__COVERAGE__}}
+export VCS_COVERAGE_DIR := {{__VCS_COVERAGE_DIR__}}
 export CHECKPOINTS := {{__CHECKPOINTS__}}
 export VPI := {{__VPI__}}
 export RW_TYPE := {{__RW_TYPE__}}
@@ -80,8 +81,22 @@ ifeq ($(SIMULATOR), verilator)
 	@rm -rf coverage/
 	@verilator_coverage -write-info coverage.info ./V${PROJECT}_coverage.dat
 	@genhtml coverage.info --output-directory coverage
+else ifeq ($(SIMULATOR), vcs)
+	@if ! command -v urg >/dev/null 2>&1; then \
+		echo "urg not found; please source the VCS/Verdi environment first"; \
+		exit 1; \
+	fi
+	@rm -rf coverage/
+	@vdb="$(VCS_COVERAGE_DIR)"; \
+	if [ ! -d "$$vdb" ]; then \
+		vdb="$$(find . -maxdepth 3 -type d -name '*.vdb' | head -n 1)"; \
+	fi; \
+	if [ -z "$$vdb" ] || [ ! -d "$$vdb" ]; then \
+		echo "No VCS coverage database found. Run the generated test before make coverage."; \
+		exit 1; \
+	fi; \
+	urg -dir "$$vdb" -report coverage
 else
-# TODO: add vcs?
 	@echo $(SIMULATOR) TBD
 endif
 else

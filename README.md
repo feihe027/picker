@@ -177,7 +177,8 @@ Options:
   -F,--frequency TEXT [100MHz]
                               Set the frequency of the **only VCS** DUT, default is 100MHz, use Hz, KHz, MHz, GHz as unit
   -w,--wave_file_name TEXT    Wave file name, empty means don't dump wave
-  -c,--coverage               Enable coverage, default is not selected as OFF
+  -c,--coverage               Enable coverage, default is not selected as OFF.
+                              With VCS, picker adds "-cm line+cond+fsm+tgl+branch+assert" and writes vcs_coverage.vdb in the generated directory
   --cp_lib,--copy_xspcomm_lib BOOLEAN [1]
                               Copy xspcomm lib to generated DUT dir, default is true
   -V,--vflag TEXT             User defined simulator compile args, passthrough.
@@ -200,6 +201,8 @@ picker export path/a.v,path/b.v --sname A,2,B,3 --tname C
 Environment Variables:
 
 - `DUMPVARS_OPTION`: Sets the option parameter for `$dumpvars`. For example, `DUMPVARS_OPTION="+mda" picker ....` enables array waveform support in VCS.
+
+VCS coverage: use `picker export --sim vcs -c ...`, run the generated test, then run `make coverage` in the generated directory. Picker enables VCS code coverage with `-cm line+cond+fsm+tgl+branch+assert` by default, writes `vcs_coverage.vdb` under the generated directory, and generates the `urg` report under `coverage/`. Custom VCS coverage flags can still be passed with `-V`. VCS coverage runs call `$finish` to flush the coverage database, so use this mode for one coverage run per process.
 
 The `pack` subcommand is used to convert UVM `sequence_item` into other languages and then communicate through TLM (currently supports Python, other languages are under development).
 

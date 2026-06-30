@@ -83,6 +83,7 @@ int DutVcsBase::Step(uint64_t ncycle, bool dump)
 int DutVcsBase::Finish()
 {
     // Finish VCS context
+    if ({{__COVERAGE_METRICS__}} != 0) { vpi_control(vpiCoverageSave); }
     finish_{{__LIB_DPI_FUNC_NAME_HASH__}}();
     return 0;
 };
@@ -93,7 +94,7 @@ void DutVcsBase::SetWaveform(const char *filename)
 };
 void DutVcsBase::SetCoverage(const char *filename)
 {
-    XInfo("VCS coverage is not supported");
+    XInfo("VCS coverage is configured by picker export -c and VCS -cm arguments");
 };
 void DutVcsBase::FlushWaveform()
 {
@@ -756,6 +757,31 @@ void DutUnifiedBase::init(int argc, const char **argv)
 #endif
         this->argc++;
     }
+
+#if defined(USE_VCS)
+    if (DutUnifiedBase::coverage_metrics != 0) {
+        bool has_cm     = false;
+        bool has_cm_dir = false;
+        for (int i = 0; i < this->argc; i++) {
+            std::string arg(this->argv[i]);
+            if (arg == "-cm" || arg.rfind("-cm=", 0) == 0) { has_cm = true; }
+            if (arg == "-cm_dir" || arg.rfind("-cm_dir=", 0) == 0) { has_cm_dir = true; }
+        }
+        auto append_vcs_arg = [this](const char *arg) {
+            this->argv[this->argc] = (char *)malloc(strlen(arg) + 1);
+            strcpy(this->argv[this->argc], arg);
+            this->argc++;
+        };
+        if (!has_cm) {
+            append_vcs_arg("-cm");
+            append_vcs_arg("{{__VCS_COVERAGE_METRICS__}}");
+        }
+        if (!has_cm_dir) {
+            append_vcs_arg("-cm_dir");
+            append_vcs_arg("{{__VCS_COVERAGE_DIR__}}");
+        }
+    }
+#endif
 
     // the main namespace instance doesn't need to load the shared library
     if (!main_ns_flag) {

@@ -56,6 +56,46 @@ assert_contains "${TMP_DIR}/vcs_nowave/Adder_top.sv" 'function void finish_'
 assert_not_contains "${TMP_DIR}/vcs_nowave/Adder_top.sv" '\$fsdbDumpFinish;'
 assert_not_contains "${TMP_DIR}/vcs_nowave/Adder_top.sv" '\$finish;'
 
+blue "[export-finish-hooks] Exporting VCS wrapper with coverage"
+"${PICKER_BIN}" export \
+  "${ROOT_DIR}/example/Adder/Adder.v" \
+  --autobuild false \
+  --sdir "${ROOT_DIR}/template" \
+  --sname Adder \
+  --tdir "${TMP_DIR}/vcs_coverage" \
+  --lang python \
+  --sim vcs \
+  --coverage
+
+assert_contains "${TMP_DIR}/vcs_coverage/Makefile" 'export SIMULATOR_FLAGS := -cm line+cond+fsm+tgl+branch+assert -cm_dir'
+assert_contains "${TMP_DIR}/vcs_coverage/Makefile" 'vcs_coverage.vdb'
+assert_contains "${TMP_DIR}/vcs_coverage/Makefile" 'urg -dir'
+assert_contains "${TMP_DIR}/vcs_coverage/Makefile" '-report coverage'
+assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'append_vcs_arg("line+cond+fsm+tgl+branch+assert")'
+assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'vcs_coverage.vdb'
+assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$cm_dump;'
+assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$finish;'
+
+blue "[export-finish-hooks] Exporting VCS wrapper with custom coverage flags"
+CUSTOM_VDB="${TMP_DIR}/custom_cov.vdb"
+"${PICKER_BIN}" export \
+  "${ROOT_DIR}/example/Adder/Adder.v" \
+  --autobuild false \
+  --sdir "${ROOT_DIR}/template" \
+  --sname Adder \
+  --tdir "${TMP_DIR}/vcs_custom_coverage" \
+  --lang python \
+  --sim vcs \
+  --coverage \
+  -V "-cm line -cm_dir ${CUSTOM_VDB}"
+
+assert_contains "${TMP_DIR}/vcs_custom_coverage/Makefile" "export SIMULATOR_FLAGS := -cm line -cm_dir ${CUSTOM_VDB}"
+assert_not_contains "${TMP_DIR}/vcs_custom_coverage/Makefile" 'line+cond+fsm+tgl+branch+assert'
+assert_contains "${TMP_DIR}/vcs_custom_coverage/dut_base.cpp" 'append_vcs_arg("line")'
+assert_contains "${TMP_DIR}/vcs_custom_coverage/dut_base.cpp" "${CUSTOM_VDB}"
+assert_contains "${TMP_DIR}/vcs_custom_coverage/Adder_top.sv" '\$cm_dump;'
+assert_contains "${TMP_DIR}/vcs_custom_coverage/Adder_top.sv" '\$finish;'
+
 blue "[export-finish-hooks] Exporting UVS wrapper with waveform"
 "${PICKER_BIN}" export \
   "${ROOT_DIR}/example/Adder/Adder.v" \

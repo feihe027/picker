@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cstring>
 #include <unordered_set>
 #include "codegen/lib.hpp"
@@ -6,6 +7,87 @@
 #include "codegen/firrtl.hpp"
 
 namespace picker { namespace codegen {
+
+    const std::string VCS_DEFAULT_COVERAGE_METRICS = "line+cond+fsm+tgl+branch+assert";
+    const std::string VCS_DEFAULT_COVERAGE_DIR     = "vcs_coverage.vdb";
+
+    std::vector<std::string> split_command_args(const std::string &args)
+    {
+        std::vector<std::string> tokens;
+        std::string token;
+        bool in_single_quote = false;
+        bool in_double_quote = false;
+        bool escape_next     = false;
+
+        for (char c : args) {
+            if (escape_next) {
+                token += c;
+                escape_next = false;
+                continue;
+            }
+            if (c == '\\' && !in_single_quote) {
+                escape_next = true;
+                continue;
+            }
+            if (c == '\'' && !in_double_quote) {
+                in_single_quote = !in_single_quote;
+                continue;
+            }
+            if (c == '"' && !in_single_quote) {
+                in_double_quote = !in_double_quote;
+                continue;
+            }
+            if (std::isspace(static_cast<unsigned char>(c)) && !in_single_quote && !in_double_quote) {
+                if (!token.empty()) {
+                    tokens.push_back(token);
+                    token.clear();
+                }
+                continue;
+            }
+            token += c;
+        }
+        if (!token.empty()) { tokens.push_back(token); }
+        return tokens;
+    }
+
+    std::string find_option_value(const std::vector<std::string> &tokens, const std::string &option)
+    {
+        for (size_t i = 0; i < tokens.size(); i++) {
+            if (tokens[i] == option && i + 1 < tokens.size()) { return tokens[i + 1]; }
+            const auto prefix = option + "=";
+            if (tokens[i].rfind(prefix, 0) == 0) { return tokens[i].substr(prefix.size()); }
+        }
+        return "";
+    }
+
+    bool has_option(const std::vector<std::string> &tokens, const std::string &option)
+    {
+        for (const auto &token : tokens) {
+            if (token == option || token.rfind(option + "=", 0) == 0) { return true; }
+        }
+        return false;
+    }
+
+    int vcs_coverage_metrics_mask(const std::string &metrics)
+    {
+        int mask = 0;
+        if (metrics.find("all") != std::string::npos) { return 0b111111; }
+        if (metrics.find("line") != std::string::npos) { mask |= 1 << 0; }
+        if (metrics.find("cond") != std::string::npos) { mask |= 1 << 1; }
+        if (metrics.find("fsm") != std::string::npos) { mask |= 1 << 2; }
+        if (metrics.find("tgl") != std::string::npos || metrics.find("toggle") != std::string::npos) {
+            mask |= 1 << 3;
+        }
+        if (metrics.find("branch") != std::string::npos) { mask |= 1 << 4; }
+        if (metrics.find("assert") != std::string::npos) { mask |= 1 << 5; }
+        return mask;
+    }
+
+    void append_arg(std::string &args, const std::string &arg)
+    {
+        if (!args.empty()) { args += " "; }
+        args += arg;
+    }
 
     bool check_file_type(const std::string src, const std::vector<std::string> &types)
     {
@@ -201,7 +283,7 @@ namespace picker { namespace codegen {
     }
 
     void gen_coverage_metrics(std::string &simulator, picker::export_opts &opts, std::string &vflag,
-                              nlohmann::json &data)
+                              const std::string &dst_dir, nlohmann::json &data)
     {
         const bool &coverage = opts.coverage;
         // Bitmask for collected coverage metrics.
@@ -215,16 +297,36 @@ namespace picker { namespace codegen {
         //  4  | branch
         //  5  | assert
         int metrics = 0;
+        std::string vcs_metrics = VCS_DEFAULT_COVERAGE_METRICS;
+        std::string vcs_cm_dir =
+            (std::filesystem::absolute(dst_dir) / VCS_DEFAULT_COVERAGE_DIR).lexically_normal().string();
         if (coverage && simulator == "verilator") {
             // Verilator doesn't support fsm coverage
             metrics = 0b111011;
-        } else if (simulator == "vcs") {
-            PK_MESSAGE("VCS not supported now");
-            // TODO: Parse the vflag for vcs
+        } else if (coverage && simulator == "vcs") {
+            auto tokens      = split_command_args(vflag);
+            auto user_metric = find_option_value(tokens, "-cm");
+            auto user_cm_dir = find_option_value(tokens, "-cm_dir");
+
+            if (!user_metric.empty()) {
+                vcs_metrics = user_metric;
+            } else {
+                append_arg(vflag, "-cm");
+                append_arg(vflag, vcs_metrics);
+            }
+            if (!user_cm_dir.empty()) {
+                vcs_cm_dir = user_cm_dir;
+            } else if (!has_option(tokens, "-cm_dir")) {
+                append_arg(vflag, "-cm_dir");
+                append_arg(vflag, vcs_cm_dir);
+            }
+            metrics = vcs_coverage_metrics_mask(vcs_metrics);
         }
 
-        data["__COVERAGE__"]         = coverage ? "ON" : "OFF";
-        data["__COVERAGE_METRICS__"] = metrics;
+        data["__COVERAGE__"]            = coverage ? "ON" : "OFF";
+        data["__COVERAGE_METRICS__"]    = metrics;
+        data["__VCS_COVERAGE_METRICS__"] = vcs_metrics;
+        data["__VCS_COVERAGE_DIR__"]     = vcs_cm_dir;
     }
 
     void gen_expins(nlohmann::json &expins, picker::export_opts &opts,
@@ -260,8 +362,16 @@ namespace picker { namespace codegen {
         inja::Environment env;
         nlohmann::json data;
 
-        data["__TOP_MODULE_NAME__"] = dst_module_name;
+        data["__TOP_MODULE_NAME__"]   = dst_module_name;
         data["__SHARED_LIB_SUFFIX__"] = get_shared_lib_suffix();
+
+        std::vector<std::string> incdirs;
+        gen_filelist(files, ifilelists, ofilelist, incdirs);
+        append_incdirs_to_vflag(simulator, incdirs, vflag);
+
+        // Get coverage metrics before rendering SV so the VCS finish hook can
+        // dump coverage only when coverage is enabled.
+        gen_coverage_metrics(simulator, opts, vflag, dst_dir, data);
 
         // firrtl base simulators
         std::unordered_set<std::string> firrtl_simulators = {"gsim"};
@@ -273,17 +383,12 @@ namespace picker { namespace codegen {
             ret = gen_sv_param(data, sv_module_result, internal_pin, signal_tree, wave_file_name, simulator,
                                opts.rw_type);
         }
-        std::vector<std::string> incdirs;
-        gen_filelist(files, ifilelists, ofilelist, incdirs);
-        append_incdirs_to_vflag(simulator, incdirs, vflag);
-        gen_cmake(src_dir, dst_dir, wave_file_name, simulator, vflag, cflag, env, data);
 
         // Set clock period
         printf("Frequency: %s\n", opts.frequency.c_str());
         get_clock_period(vcs_clock_period_h, vcs_clock_period_l, opts.frequency);
 
-        // Get coverage metrics
-        gen_coverage_metrics(simulator, opts, vflag, data);
+        gen_cmake(src_dir, dst_dir, wave_file_name, simulator, vflag, cflag, env, data);
 
         // Render expins info
         auto expins = nlohmann::json::array();

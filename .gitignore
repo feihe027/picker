@@ -65,3 +65,12 @@ Testing
 # Local verible installs/archives
 verible-*/
 verible-*.tar.gz
+
+# VCS/Verdi runtime artifacts
+novas.conf
+novas.rc
+verdiLog/
+*.vdb/
+DVEfiles/
+ucli.key
+FETCH_HEAD

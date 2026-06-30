@@ -342,7 +342,10 @@ namespace picker { namespace codegen {
             // the cleanup in C++), so keep the historical $finish for them.
             std::string finish_body;
             if (simulator == "vcs") {
-                if (!wave_file_name.empty()) finish_body = "    $fsdbDumpFinish;\n";
+                const bool coverage_enabled = global_data.value("__COVERAGE__", std::string("OFF")) == "ON";
+                if (coverage_enabled) finish_body += "    $cm_dump;\n";
+                if (!wave_file_name.empty()) finish_body += "    $fsdbDumpFinish;\n";
+                if (coverage_enabled) finish_body += "    $finish;\n";
             } else if (simulator == "uvs") {
                 if (!wave_file_name.empty()) finish_body = "    $usdbDumpFinish;\n";
             } else {
