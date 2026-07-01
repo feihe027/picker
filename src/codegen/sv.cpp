@@ -32,6 +32,14 @@ namespace picker { namespace codegen {
             "{{__FINISH_BODY__}}"
             "  endfunction\n";
 
+        // Runtime waveform switch: close the current dump and start a fresh file.
+        // Lets each pytest case dump to its own fsdb via DutVcsBase::SetWaveform.
+        static const std::string dpi_setwave_sv_template =
+            "  export \"DPI-C\" function set_wave_{{__LIB_DPI_FUNC_NAME_HASH__}};\n"
+            "  function void set_wave_{{__LIB_DPI_FUNC_NAME_HASH__}}(input string name);\n"
+            "{{__WAVE_SWITCH_BODY__}}"
+            "  endfunction\n";
+
         /// @brief Export external pin for verilog render, contains pin connect,
         /// @param pin
         /// @param pin_connect
@@ -359,6 +367,20 @@ namespace picker { namespace codegen {
             }
             data["__FINISH_BODY__"] = finish_body;
             extend_sv               = env.render(dpi_finish_sv_template, data);
+
+            // VCS: expose a runtime fsdb-switch function so each pytest case can
+            // dump to its own waveform file. Only when a waveform is configured
+            // (-w); closes the current dump, opens the new file and re-arms
+            // $fsdbDumpvars on the top scope.
+            if (simulator == "vcs" && !wave_file_name.empty()) {
+                const std::string top  = global_data.value("__TOP_MODULE_NAME__", std::string()) + "_top";
+                const std::string opts = global_data.value("__DUMP_VAR_OPTIONS__", std::string());
+                data["__WAVE_SWITCH_BODY__"] =
+                    "    $fsdbDumpFinish;\n"
+                    "    $fsdbDumpfile(name);\n"
+                    "    $fsdbDumpvars(0, " + top + opts + ");\n";
+                extend_sv += env.render(dpi_setwave_sv_template, data);
+            }
         }
 
     } // namespace sv

@@ -50,6 +50,7 @@ assert_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$fsdbDumpfile("runtime.fsdb")'
 assert_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$fsdbDumpFinish;'
 assert_not_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$finish;'
 assert_file_absent "${TMP_DIR}/vcs/vcs_coverage.md"
+assert_contains "${TMP_DIR}/vcs/Adder_top.sv" 'set_wave_'
 
 blue "[export-finish-hooks] Exporting VCS wrapper without waveform"
 "${PICKER_BIN}" export \
@@ -137,5 +138,6 @@ assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$dumpfile("runtime.vcd")'
 assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$finish;'
 assert_not_contains "${TMP_DIR}/verilator/Adder_top.sv" 'DumpFinish'
 assert_file_absent "${TMP_DIR}/verilator/vcs_coverage.md"
+assert_not_contains "${TMP_DIR}/verilator/Adder_top.sv" 'set_wave_'
 
 green "[export-finish-hooks] OK"

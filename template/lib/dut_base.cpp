@@ -92,7 +92,15 @@ int DutVcsBase::Finish()
 
 void DutVcsBase::SetWaveform(const char *filename)
 {
-    XInfo("VCS waveform is not supported");
+    // Switch the fsdb dump to a new file at runtime (see set_wave_<hash> in the
+    // generated SV top). Enables one waveform file per pytest case. Only
+    // available when the DUT was exported with a waveform (-w).
+{% if __TRACE__ != "OFF" %}
+    set_wave_{{__LIB_DPI_FUNC_NAME_HASH__}}(filename);
+{% else %}
+    (void)filename;
+    XInfo("VCS waveform dump not enabled; re-export with -w <file>.fsdb to switch waveforms at runtime");
+{% endif %}
 };
 void DutVcsBase::SetCoverage(const char *filename)
 {
