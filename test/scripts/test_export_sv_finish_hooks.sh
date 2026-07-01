@@ -27,6 +27,14 @@ assert_not_contains() {
   fi
 }
 
+assert_file_absent() {
+  local file="$1"
+  if [ -e "$file" ]; then
+    red "Unexpected file present: $file"
+    exit 1
+  fi
+}
+
 blue "[export-finish-hooks] Exporting VCS wrapper with waveform"
 "${PICKER_BIN}" export \
   "${ROOT_DIR}/example/Adder/Adder.v" \
@@ -41,6 +49,7 @@ blue "[export-finish-hooks] Exporting VCS wrapper with waveform"
 assert_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$fsdbDumpfile("runtime.fsdb")'
 assert_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$fsdbDumpFinish;'
 assert_not_contains "${TMP_DIR}/vcs/Adder_top.sv" '\$finish;'
+assert_file_absent "${TMP_DIR}/vcs/vcs_coverage.md"
 
 blue "[export-finish-hooks] Exporting VCS wrapper without waveform"
 "${PICKER_BIN}" export \
@@ -75,7 +84,7 @@ assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'append_vcs_arg("line+con
 assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'vcs_coverage.vdb'
 assert_not_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$cm_dump;'
 assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$finish;'
-assert_contains "${TMP_DIR}/vcs_coverage/vcs_coverage.md" 'VCS code coverage enabled'
+assert_contains "${TMP_DIR}/vcs_coverage/vcs_coverage.md" 'VCS coverage build'
 assert_contains "${TMP_DIR}/vcs_coverage/vcs_coverage.md" 'vcs_coverage.vdb'
 
 blue "[export-finish-hooks] Exporting VCS wrapper with custom coverage flags"
@@ -127,6 +136,6 @@ blue "[export-finish-hooks] Exporting Verilator wrapper with waveform"
 assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$dumpfile("runtime.vcd")'
 assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$finish;'
 assert_not_contains "${TMP_DIR}/verilator/Adder_top.sv" 'DumpFinish'
-assert_contains "${TMP_DIR}/verilator/vcs_coverage.md" 'NOT exported with VCS coverage'
+assert_file_absent "${TMP_DIR}/verilator/vcs_coverage.md"
 
 green "[export-finish-hooks] OK"

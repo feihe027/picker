@@ -414,6 +414,12 @@ namespace picker { namespace codegen {
         // Render lib files
         recursive_render(src_dir, dst_dir, data, env);
 
+        // vcs_coverage.md only applies to VCS coverage builds; drop it otherwise.
+        if (!(simulator == "vcs" && opts.coverage)) {
+            std::error_code ec;
+            std::filesystem::remove(dst_dir + "/vcs_coverage.md", ec);
+        }
+
         // Copy verilog files
         for (const auto &entry : std::filesystem::directory_iterator(dst_dir)) {
             if (entry.is_regular_file()) {
