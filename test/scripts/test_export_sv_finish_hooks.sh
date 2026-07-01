@@ -75,6 +75,8 @@ assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'append_vcs_arg("line+con
 assert_contains "${TMP_DIR}/vcs_coverage/dut_base.cpp" 'vcs_coverage.vdb'
 assert_not_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$cm_dump;'
 assert_contains "${TMP_DIR}/vcs_coverage/Adder_top.sv" '\$finish;'
+assert_contains "${TMP_DIR}/vcs_coverage/vcs_coverage.md" 'VCS code coverage enabled'
+assert_contains "${TMP_DIR}/vcs_coverage/vcs_coverage.md" 'vcs_coverage.vdb'
 
 blue "[export-finish-hooks] Exporting VCS wrapper with custom coverage flags"
 CUSTOM_VDB="${TMP_DIR}/custom_cov.vdb"
@@ -125,5 +127,6 @@ blue "[export-finish-hooks] Exporting Verilator wrapper with waveform"
 assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$dumpfile("runtime.vcd")'
 assert_contains "${TMP_DIR}/verilator/Adder_top.sv" '\$finish;'
 assert_not_contains "${TMP_DIR}/verilator/Adder_top.sv" 'DumpFinish'
+assert_contains "${TMP_DIR}/verilator/vcs_coverage.md" 'NOT exported with VCS coverage'
 
 green "[export-finish-hooks] OK"
