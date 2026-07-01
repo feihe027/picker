@@ -62,6 +62,12 @@ still valid.
 To gate coverage inside pytest, run a short driver in a subprocess (so its exit
 commits the `.vdb`), then call `urg` and parse the line-coverage percentage —
 see `example/*/test_*_wave_coverage.py` for a working pattern.
+
+**4. Text report and version note**
+
+> 注意：urg 和 vcs 版本需要一致。生成覆盖率文本信息：
+
+    urg -dir {{__VCS_COVERAGE_DIR__}} -report urgReportTxt -format both
 {% else %}
 This DUT was NOT exported with VCS coverage
 (Simulator=`{{__SIMULATOR__}}`, Coverage=`{{__COVERAGE__}}`), so no VCS coverage
