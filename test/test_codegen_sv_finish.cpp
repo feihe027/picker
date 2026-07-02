@@ -45,15 +45,22 @@ int main()
     assert(contains_line(verilator_extend, "finish_H"));
     assert(contains_line(verilator_extend, "$finish;"));
     assert(!contains_line(verilator_extend, "DumpFinish"));
+    assert(!contains_line(verilator_extend, "set_wave_H"));
 
     const auto vcs_extend = render_extend_sv("vcs", "wave.fsdb");
     assert(contains_line(vcs_extend, "$fsdbDumpFinish;"));
     assert(!contains_line(vcs_extend, "$finish;"));
+    // Per-case waveform switch is exported for VCS wave builds.
+    assert(contains_line(vcs_extend, "set_wave_H"));
+    assert(contains_line(vcs_extend, "$fsdbDumpfile(name);"));
+    assert(contains_line(vcs_extend, "$fsdbDumpvars(0, Top_top"));
 
     const auto vcs_no_wave_extend = render_extend_sv("vcs", "");
     assert(contains_line(vcs_no_wave_extend, "function void finish_H;"));
     assert(!contains_line(vcs_no_wave_extend, "$fsdbDumpFinish;"));
     assert(!contains_line(vcs_no_wave_extend, "$finish;"));
+    // No waveform configured -> no switch function (avoids an undefined DPI ref).
+    assert(!contains_line(vcs_no_wave_extend, "set_wave_H"));
 
     const auto uvs_extend = render_extend_sv("uvs", "wave.usdb");
     assert(contains_line(uvs_extend, "$usdbDumpFinish;"));

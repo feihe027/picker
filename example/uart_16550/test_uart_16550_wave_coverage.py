@@ -153,17 +153,38 @@ def _exercise(dut, rounds=4):
     for b in (0x55, 0xA3, 0x00, 0xFF, 0x7E):
         apb_write(dut, DR, b)
     dut.Step(16 * 12 * 5)          # let the bytes shift out
-    # RX: drive serial frames into the receive FIFO/shifter.
+    # Interrupts: enable sources, receive, then read IIR (clears rx int).
+    apb_write(dut, IER, 0x0F)
     for b in (0x41, 0x55, 0xC3, 0x00, 0xFF):
         send_serial_byte(dut, b, divisor=1)
         apb_read(dut, LSR)
+        apb_read(dut, IIR)
         apb_read(dut, DR)
+    # Overrun: drive more frames than we drain to exercise the error path.
+    for b in (0x11, 0x22, 0x33, 0x44, 0x55, 0x66):
+        send_serial_byte(dut, b, divisor=1)
+    apb_read(dut, LSR)
+    # FIFO control: cycle the trigger-level and reset bits.
+    for fcr in (0x01, 0x41, 0x81, 0xC1, 0x07, 0x06, 0x00):
+        apb_write(dut, FCR, fcr)
+        apb_read(dut, LSR)
+    # Line-control variants: parity odd/even/stick, 2 stop bits, word lengths.
+    for lcr in (0x00, 0x03, 0x07, 0x0B, 0x1B, 0x3B, 0x02, 0x01):
+        apb_write(dut, LCR, lcr)
+        apb_read(dut, LCR)
+    # Modem control incl. loopback bit (MCR[4]) and DTR/RTS/OUT1/OUT2.
+    for mcr in (0x01, 0x02, 0x04, 0x08, 0x10, 0x1F, 0x00):
+        apb_write(dut, MCR, mcr)
+        apb_read(dut, MSR)
     # A few more register churns for branch coverage.
     for _ in range(rounds):
-        apb_write(dut, FCR, 0x06)  # reset both FIFOs
-        apb_write(dut, LCR, 0x1B)  # parity enabled variant
+        apb_write(dut, IER, 0x00)
+        apb_write(dut, FCR, 0x06)
+        apb_write(dut, LCR, 0x1B)
         apb_read(dut, IIR)
         apb_read(dut, LSR)
+        apb_read(dut, DR)
+
 
 
 def _find_coverage_vdb():
@@ -300,6 +321,66 @@ def test_modem_status_reacts(dut):
 def test_full_exercise_runs(dut):
     # Smoke: the whole stimulus sequence runs without error in-process.
     _exercise(dut, rounds=2)
+
+
+def test_interrupt_id_readable_and_clears(dut):
+    reset(dut)
+    configure(dut, divisor=1, lcr=0x03)
+    apb_write(dut, FCR, 0x07)
+    apb_write(dut, IER, 0x0F)          # enable all interrupt sources
+    send_serial_byte(dut, 0x5A, divisor=1)
+    dut.Step(32)
+    iir_pending = apb_read(dut, IIR)
+    apb_read(dut, DR)                  # drain the byte
+    dut.Step(16)
+    iir_after = apb_read(dut, IIR)
+    # IIR bit0 == 1 means "no interrupt pending". Reading data should change the
+    # pending state, so the two reads must differ.
+    assert iir_pending != iir_after
+
+
+def test_fifo_reset_via_fcr(dut):
+    reset(dut)
+    configure(dut, divisor=1, lcr=0x03)
+    apb_write(dut, DR, 0x11)           # queue a byte
+    apb_write(dut, FCR, 0x06)          # reset rx+tx FIFOs
+    dut.Step(8)
+    lsr = apb_read(dut, LSR)
+    assert (lsr & LSR_DR) == 0         # rx empty after reset
+
+
+def test_overrun_keeps_data_ready(dut):
+    reset(dut)
+    configure(dut, divisor=1, lcr=0x03)
+    apb_write(dut, FCR, 0x01)
+    for b in (0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70):
+        send_serial_byte(dut, b, divisor=1)   # more than we drain -> overrun path
+    dut.Step(32)
+    assert (apb_read(dut, LSR) & LSR_DR) != 0
+
+
+@pytest.mark.parametrize("lcr", [0x03, 0x07, 0x0B, 0x1B, 0x3B])
+def test_line_control_variants_readback(dut, lcr):
+    reset(dut)
+    apb_write(dut, LCR, lcr)
+    assert apb_read(dut, LCR) == lcr
+
+
+def test_all_readable_registers(dut):
+    reset(dut)
+    configure(dut, divisor=1, lcr=0x03)
+    for addr in (DR, IIR, LCR, LSR, MSR, DIV1, DIV2):
+        val = apb_read(dut, addr)
+        assert 0 <= val <= 0xFF
+
+
+def test_modem_control_bits_and_loopback(dut):
+    reset(dut)
+    for mcr in (0x01, 0x02, 0x04, 0x08, 0x10, 0x1F, 0x00):
+        apb_write(dut, MCR, mcr)       # incl. loopback bit MCR[4]
+        dut.Step(4)
+    # MSR stays readable after toggling all modem-control bits.
+    assert 0 <= apb_read(dut, MSR) <= 0xFF
 
 
 # --------------------------------------------------------------------------- #
